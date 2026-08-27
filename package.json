@@ -1,7 +1,27 @@
 {
   "name": "shared-microphone",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Open the microphone once and share its audio frames with every consumer that needs them",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "microphone",
     "getusermedia",
@@ -13,33 +33,30 @@
     "mic-bus"
   ],
   "license": "MIT",
-  "author": "piro0919",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/piro0919/shared-microphone.git"
   },
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+  "funding": "https://github.com/sponsors/piro0919",
+  "bugs": {
+    "url": "https://github.com/piro0919/shared-microphone/issues"
   },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
+  "author": "piro0919 <piro.haniwa@gmail.com> (https://kkweb.io/)",
   "engines": {
     "node": ">=20"
   },
   "packageManager": "pnpm@11.1.2",
   "scripts": {
-    "build": "tsup",
+    "build:lib": "tsup",
     "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check",
+    "format": "biome format --write",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm test && pnpm typecheck && pnpm build"
+    "prepublishOnly": "pnpm test && pnpm build:lib"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.10",
     "tsup": "^8.5.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"

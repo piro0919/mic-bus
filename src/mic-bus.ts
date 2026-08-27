@@ -88,7 +88,8 @@ function defaultAudioContext(): AudioContext {
   const impl =
     typeof window === "undefined"
       ? undefined
-      : (window.AudioContext ?? (window as WindowWithWebkit).webkitAudioContext);
+      : (window.AudioContext ??
+        (window as WindowWithWebkit).webkitAudioContext);
   if (!impl) {
     throw new Error("AudioContext is not supported in this environment");
   }

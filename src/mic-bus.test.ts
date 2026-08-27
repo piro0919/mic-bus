@@ -12,7 +12,9 @@ function makeTrack(): MediaStreamTrack & { stopped: boolean } {
   return track as unknown as MediaStreamTrack & { stopped: boolean };
 }
 
-function makeStream(): MediaStream & { tracks: ReturnType<typeof makeTrack>[] } {
+function makeStream(): MediaStream & {
+  tracks: ReturnType<typeof makeTrack>[];
+} {
   const tracks = [makeTrack()];
   return {
     getTracks: () => tracks,
@@ -92,7 +94,9 @@ type Harness = ReturnType<typeof setup>;
 function setup(
   options: {
     contextOverrides?: Partial<FakeContext>;
-    getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+    getUserMedia?: (
+      constraints: MediaStreamConstraints,
+    ) => Promise<MediaStream>;
   } = {},
 ) {
   const contexts: FakeContext[] = [];
