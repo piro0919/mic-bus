@@ -1,4 +1,4 @@
-import { createMicBus } from "./mic-bus.js";
+import { createMicBus } from "./mic-bus";
 
 export {
   createMicBus,
@@ -6,7 +6,7 @@ export {
   type MicBusOptions,
   type MicBusWarning,
   type MicFrameListener,
-} from "./mic-bus.js";
+} from "./mic-bus";
 
 /**
  * The shared microphone.
