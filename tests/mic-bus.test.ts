@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMicBus, type MicBusWarning } from "./mic-bus";
+import { createMicBus, type MicBusWarning } from "../src/mic-bus";
 
 /** An audio track that only records whether it was stopped. */
 function makeTrack(): MediaStreamTrack & { stopped: boolean } {
