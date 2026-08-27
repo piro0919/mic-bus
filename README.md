@@ -1,4 +1,4 @@
-# mic-bus
+# shared-microphone
 
 マイクを1本だけ開き、音声フレームを必要なものすべてへ配る。
 
@@ -12,13 +12,13 @@
 ## 導入
 
 ```bash
-npm install mic-bus
+npm install shared-microphone
 ```
 
 ## 使い方
 
 ```ts
-import { micBus } from "mic-bus";
+import { micBus } from "shared-microphone";
 
 // 音の受け取りを始める。まだ開いていなくても登録できる
 const stopListening = micBus.subscribe((samples, sampleRate) => {
@@ -50,7 +50,7 @@ await micBus.open();
 ### 続行はできるが伝えたいこと
 
 ```ts
-import { createMicBus } from "mic-bus";
+import { createMicBus } from "shared-microphone";
 
 const bus = createMicBus({
   onWarning: (warning) => {

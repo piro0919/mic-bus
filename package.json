@@ -1,5 +1,5 @@
 {
-  "name": "mic-bus",
+  "name": "shared-microphone",
   "version": "0.1.0",
   "description": "Open the microphone once and share its audio frames with every consumer that needs them",
   "keywords": [
@@ -9,13 +9,14 @@
     "audio",
     "shared",
     "speech-recognition",
-    "wake-word"
+    "wake-word",
+    "mic-bus"
   ],
   "license": "MIT",
   "author": "piro0919",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/piro0919/mic-bus.git"
+    "url": "git+https://github.com/piro0919/shared-microphone.git"
   },
   "type": "module",
   "exports": {
