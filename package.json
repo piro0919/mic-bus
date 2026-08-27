@@ -1,0 +1,46 @@
+{
+  "name": "mic-bus",
+  "version": "0.1.0",
+  "description": "Open the microphone once and share its audio frames with every consumer that needs them",
+  "keywords": [
+    "microphone",
+    "getusermedia",
+    "web-audio",
+    "audio",
+    "shared",
+    "speech-recognition",
+    "wake-word"
+  ],
+  "license": "MIT",
+  "author": "piro0919",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/piro0919/mic-bus.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm test && pnpm typecheck && pnpm build"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
