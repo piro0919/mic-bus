@@ -1,24 +1,27 @@
 /**
- * マイクを1本だけ開き、音声フレームを複数の受け取り手へ配る。
+ * Open the microphone once and share its audio frames with every consumer.
  *
- * 待ち受け（ウェイクワード検知）と文字起こしのように、同じ音を必要とするものが
- * 2つ以上あるとき、それぞれが `getUserMedia` を呼ぶと、切り替えのたびにデバイスを
- * 開き直すことになる。開き直しは端末によっては数百ミリ秒かかり、その間の発話は
- * 丸ごと落ちる。待ち受けの照合は発話の先頭が少し欠けるだけで閾値を割るので、
- * これは「遅れ」ではなく「不発」として現れる。
+ * When two or more things need the same audio — wake word detection and
+ * transcription, say — having each of them call `getUserMedia` means the device
+ * is reopened every time you switch between them. Reopening takes hundreds of
+ * milliseconds on some hardware, and whatever is said during that window is lost
+ * entirely. Wake word matching falls below its threshold when the start of an
+ * utterance is clipped, so this shows up as the wake word simply not firing
+ * rather than as a delay.
  */
 
-/** 音声フレームの受け取り手。`samples` は 1ch の Float32（-1〜1）。 */
+/** Receives audio frames. `samples` is single-channel Float32 in the -1..1 range. */
 export type MicFrameListener = (
   samples: Float32Array,
   sampleRate: number,
 ) => void;
 
 /**
- * 少し置いて取り直す価値のある失敗。
+ * Failures worth one retry.
  *
- * 「今はほかが使っている」たぐいはすぐ解けることがある。権限が無い・API が無い・
- * 端末が無いは何度試しても同じなので、そのまま返す。
+ * "Something else is using it right now" often clears on its own. Missing
+ * permission, missing API and missing hardware give the same answer however many
+ * times you ask, so those are passed straight through.
  */
 const RETRIABLE_ERRORS = new Set([
   "AbortError",
@@ -27,44 +30,44 @@ const RETRIABLE_ERRORS = new Set([
   "TrackStartError",
 ]);
 
-/** ScriptProcessor の粒度。48 kHz なら約 85 ミリ秒ごとに 1 フレーム届く。 */
+/** ScriptProcessor granularity. At 48 kHz one frame arrives roughly every 85 ms. */
 const DEFAULT_FRAME_SIZE = 4096;
 const RETRY_DELAY_MS = 250;
 
 export type MicBusWarning =
-  /** 指定されたデバイスを開けず、既定のマイクに切り替えた。 */
+  /** The requested device could not be opened, so the default one is in use. */
   | { deviceId: string; error: unknown; type: "device-fallback" }
-  /** 受け取り手が投げた。ほかへの配布は続けている。 */
+  /** A listener threw. Delivery to the others continued. */
   | { error: unknown; type: "listener-failed" }
-  /** 出力先を切れなかった。動きはするが、一部の端末で音が止まることがある。 */
+  /** The output sink could not be silenced. Playback still works on most devices. */
   | { error: unknown; type: "sink-not-silenced" };
 
 export type MicBusOptions = {
-  /** `AudioContext` を作る。既定はグローバルのもの（`webkitAudioContext` も見る）。 */
+  /** Creates the `AudioContext`. Defaults to the global one, falling back to `webkitAudioContext`. */
   audioContext?: () => AudioContext;
-  /** 1 フレームのサンプル数。2 の冪。既定 4096。 */
+  /** Samples per frame. A power of two. Defaults to 4096. */
   frameSize?: number;
-  /** `navigator.mediaDevices.getUserMedia` の差し替え。 */
+  /** Replaces `navigator.mediaDevices.getUserMedia`. */
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
-  /** 続行はできるが伝えたい出来事。トーストなどに繋ぐ。 */
+  /** Events that do not stop the bus but are worth surfacing, e.g. as a toast. */
   onWarning?: (warning: MicBusWarning) => void;
 };
 
 export type MicBus = {
-  /** 開いているデバイス。既定のマイクなら null。閉じていても null。 */
+  /** The open device, or null for the default one. Also null while closed. */
   readonly deviceId: null | string;
-  /** 今開いているか。 */
+  /** Whether the microphone is currently open. */
   readonly isOpen: boolean;
-  /** 受け取り手の数。 */
+  /** How many listeners are attached. */
   readonly listenerCount: number;
-  /** マイクを閉じる。購読は残るので、次に開けばそのまま届く。 */
+  /** Close the microphone. Listeners stay attached and resume on the next open. */
   close: () => void;
   /**
-   * マイクを開く。すでに同じデバイスで開いていれば何もしない。
-   * デバイスの指定が変わっていたら開き直す。
+   * Open the microphone. Does nothing if the same device is already open.
+   * Reopens when the requested device changed.
    */
   open: (deviceId?: null | string) => Promise<void>;
-  /** 音声フレームの受け取りを始める。戻り値を呼ぶと止まる。 */
+  /** Start receiving audio frames. Call the returned function to stop. */
   subscribe: (listener: MicFrameListener) => () => void;
 };
 
@@ -104,10 +107,10 @@ function defaultGetUserMedia(
 }
 
 /**
- * マイクの共有を作る。
+ * Create a microphone bus.
  *
- * 普通は1本あれば足りるので、`micBus` をそのまま使ってよい。
- * 試験や、複数の端末を同時に扱う場合にここから作る。
+ * One is usually enough, so reach for the exported `micBus` first. Create your own
+ * for tests, or when you genuinely need to drive several devices at once.
  */
 export function createMicBus(options: MicBusOptions = {}): MicBus {
   const frameSize = options.frameSize ?? DEFAULT_FRAME_SIZE;
@@ -122,7 +125,7 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
     source: null,
     stream: null,
   };
-  // 同時に開こうとしたぶんを1本にまとめる。素通しすると2本目のデバイスが開く。
+  // Collapse concurrent opens into one. Letting them through opens a second device.
   let openInFlight: null | Promise<void> = null;
 
   function warn(warning: MicBusWarning): void {
@@ -150,7 +153,7 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
     try {
       return await acquire({ audio: { deviceId: { exact: deviceId } } });
     } catch (error) {
-      // 選んだマイクが抜かれていることがある。既定に落として鳴らし続ける。
+      // The chosen microphone may have been unplugged. Fall back and keep going.
       warn({ deviceId, error, type: "device-fallback" });
       return acquire({ audio: true });
     }
@@ -189,11 +192,12 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
   ): Promise<void> {
     const audioContext = makeAudioContext();
 
-    // 録音するだけで出力（スピーカー）は要らない。Bluetooth 接続中は AudioContext の
-    // 出力先が BT（SCO 再生）になり、BT マイク入力（SCO 録音）との全二重 SCO を
-    // 一部の Android 端末が確立できず、レンダースレッドが止まって onaudioprocess が
-    // 発火しなくなる。ハードウェア出力を開かない silent sink にして避ける。
-    // iOS Safari は setSinkId に対応しないので、あるときだけ呼ぶ。
+    // Recording needs no speaker output. While Bluetooth is connected the
+    // AudioContext routes its output to the headset, and some Android devices
+    // cannot establish full-duplex SCO alongside the microphone input. When that
+    // happens the render thread stalls and onaudioprocess stops firing entirely.
+    // A silent sink avoids opening hardware output at all. iOS Safari has no
+    // setSinkId, so only call it where it exists.
     const withSink = audioContext as {
       setSinkId?: (sinkId: string | { type: "none" }) => Promise<void>;
     } & AudioContext;
@@ -205,8 +209,9 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
       }
     }
 
-    // getUserMedia の await を挟むと Android Chrome では suspended で始まる。
-    // resume しないと onaudioprocess が発火しない。running への resume は何もしない。
+    // On Android Chrome the context starts suspended when a getUserMedia await
+    // comes first. Without a resume, onaudioprocess never fires. Resuming an
+    // already-running context is a no-op.
     if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
@@ -219,7 +224,7 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
     processor.onaudioprocess = (event): void => {
       const input = event.inputBuffer.getChannelData(0);
       const sampleRate = event.inputBuffer.sampleRate;
-      // 受け取り手の1つが投げても、ほかへの配布は止めない。
+      // One listener throwing must not stop delivery to the others.
       for (const listener of [...listeners]) {
         try {
           listener(input, sampleRate);
@@ -246,9 +251,10 @@ export function createMicBus(options: MicBusOptions = {}): MicBus {
     try {
       await attach(stream, deviceId);
     } catch (error) {
-      // ここで転ぶと、掴んだマイクはまだ state に載っていないので teardown() の
-      // 手が届かない。誰にも配られないまま開きっぱなしのデバイスが残り、次に
-      // 開こうとしたものが取れなくなる。取ったものは自分で手放す。
+      // Failing here leaves the acquired microphone out of reach of teardown(),
+      // because it is not in state yet. That would strand an open device nobody
+      // receives from, and the next open would fail to acquire one. Release what
+      // we took.
       for (const track of stream.getTracks()) track.stop();
       throw error;
     }

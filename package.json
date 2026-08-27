@@ -1,6 +1,6 @@
 {
   "name": "shared-microphone",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open the microphone once and share its audio frames with every consumer that needs them",
   "keywords": [
     "microphone",

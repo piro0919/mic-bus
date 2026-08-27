@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMicBus, type MicBusWarning } from "./mic-bus.js";
 
-/** 停めたことが分かるだけの音声トラック。 */
+/** An audio track that only records whether it was stopped. */
 function makeTrack(): MediaStreamTrack & { stopped: boolean } {
   const track = {
     stop: (): void => {
@@ -35,7 +35,7 @@ type FakeProcessor = {
   disconnect: () => void;
   frameSize: number;
   onaudioprocess: ((event: unknown) => void) | null;
-  /** マイクから 1 フレーム届いたことにする。 */
+  /** Pretend one frame arrived from the microphone. */
   emit: (samples: Float32Array, sampleRate: number) => void;
 };
 
@@ -132,14 +132,14 @@ function processorOf(harness: Harness, index = 0): FakeProcessor {
 }
 
 describe("open", () => {
-  it("既定のマイクを開く", async () => {
+  it("opens the default microphone", async () => {
     const harness = setup();
     await harness.bus.open();
     expect(harness.calls).toEqual([{ audio: true }]);
     expect(harness.bus.isOpen).toBe(true);
   });
 
-  it("デバイスを指定して開く", async () => {
+  it("opens a named device", async () => {
     const harness = setup();
     await harness.bus.open("mic-1");
     expect(harness.calls).toEqual([
@@ -148,15 +148,15 @@ describe("open", () => {
     expect(harness.bus.deviceId).toBe("mic-1");
   });
 
-  it("同じデバイスなら開き直さない", async () => {
+  it("does not reopen the same device", async () => {
     const harness = setup();
     await harness.bus.open("mic-1");
     await harness.bus.open("mic-1");
-    // 開き直すと、その間の音声が丸ごと落ちる。
+    // Reopening loses every sample spoken during the gap.
     expect(harness.calls).toHaveLength(1);
   });
 
-  it("デバイスが変わったら開き直し、前のものを止める", async () => {
+  it("reopens on a device change and stops the previous one", async () => {
     const harness = setup();
     await harness.bus.open("mic-1");
     await harness.bus.open("mic-2");
@@ -166,24 +166,24 @@ describe("open", () => {
     expect(harness.bus.deviceId).toBe("mic-2");
   });
 
-  it("同時に開こうとしても1本にまとめる", async () => {
+  it("collapses concurrent opens into one", async () => {
     const harness = setup();
-    // 素通しすると 2 本目のデバイスが開く。
+    // Letting them through opens a second device.
     await Promise.all([harness.bus.open("mic-1"), harness.bus.open("mic-1")]);
     expect(harness.calls).toHaveLength(1);
   });
 
-  it("suspended で始まったら resume する", async () => {
-    // Android Chrome では getUserMedia の await を挟むと suspended で始まる。
-    // resume しないとフレームが1つも届かない。
+  it("resumes a context that starts suspended", async () => {
+    // On Android Chrome the context starts suspended when a getUserMedia await
+    // comes first. Without a resume, not a single frame arrives.
     const harness = setup({ contextOverrides: { state: "suspended" } });
     await harness.bus.open();
     expect(harness.contexts[0]?.resumed).toBe(1);
   });
 });
 
-describe("失敗したとき", () => {
-  it("取り直す価値のある失敗だけ 1 回やり直す", async () => {
+describe("failures", () => {
+  it("retries once, and only for failures worth retrying", async () => {
     vi.useFakeTimers();
     try {
       const error = Object.assign(new Error("busy"), {
@@ -204,7 +204,7 @@ describe("失敗したとき", () => {
     }
   });
 
-  it("権限の失敗はやり直さない", async () => {
+  it("does not retry a permission failure", async () => {
     const error = Object.assign(new Error("denied"), {
       name: "NotAllowedError",
     });
@@ -215,7 +215,7 @@ describe("失敗したとき", () => {
     expect(getUserMedia).toHaveBeenCalledTimes(1);
   });
 
-  it("指定のデバイスが開けなければ既定へ落とす", async () => {
+  it("falls back to the default device when the named one fails", async () => {
     const getUserMedia = vi
       .fn()
       .mockRejectedValueOnce(
@@ -232,9 +232,9 @@ describe("失敗したとき", () => {
     });
   });
 
-  it("組み立てに失敗したら掴んだマイクを手放す", async () => {
-    // ここで手放さないと、誰にも配られないまま開きっぱなしのデバイスが残り、
-    // 次に開こうとしたものが取れなくなる。
+  it("releases the acquired microphone when wiring fails", async () => {
+    // Without this, an open device nobody receives from is stranded, and the
+    // next open cannot acquire one.
     const stream = makeStream();
     const harness = setup({
       contextOverrides: {
@@ -259,7 +259,7 @@ describe("subscribe", () => {
     await harness.bus.open();
   });
 
-  it("届いたフレームを配る", () => {
+  it("delivers incoming frames", () => {
     const first = vi.fn();
     const second = vi.fn();
     harness.bus.subscribe(first);
@@ -272,7 +272,7 @@ describe("subscribe", () => {
     expect(second).toHaveBeenCalledWith(samples, 48000);
   });
 
-  it("止めたら届かなくなる", () => {
+  it("stops delivering after unsubscribe", () => {
     const listener = vi.fn();
     const unsubscribe = harness.bus.subscribe(listener);
     unsubscribe();
@@ -280,7 +280,7 @@ describe("subscribe", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("1 つが投げても、ほかへの配布を止めない", () => {
+  it("keeps delivering to the others when one listener throws", () => {
     const failing = vi.fn(() => {
       throw new Error("listener boom");
     });
@@ -296,7 +296,7 @@ describe("subscribe", () => {
     );
   });
 
-  it("閉じても購読は残り、開き直せば届く", async () => {
+  it("keeps listeners across a close and resumes on reopen", async () => {
     const listener = vi.fn();
     harness.bus.subscribe(listener);
     harness.bus.close();
@@ -310,7 +310,7 @@ describe("subscribe", () => {
 });
 
 describe("close", () => {
-  it("マイクと AudioContext を手放す", async () => {
+  it("releases the microphone and the AudioContext", async () => {
     const harness = setup();
     await harness.bus.open();
     harness.bus.close();
@@ -321,24 +321,24 @@ describe("close", () => {
     expect(harness.bus.deviceId).toBeNull();
   });
 
-  it("開いていなくても投げない", () => {
+  it("does not throw when nothing is open", () => {
     const harness = setup();
     expect(() => harness.bus.close()).not.toThrow();
   });
 });
 
-describe("出力先", () => {
-  it("対応していれば無音の出力先にする", async () => {
-    // Bluetooth 接続中に出力を開くと、一部の Android 端末でフレームが
-    // 届かなくなる。
+describe("output sink", () => {
+  it("silences the sink where supported", async () => {
+    // Opening hardware output while Bluetooth is connected stops frames from
+    // arriving on some Android devices.
     const setSinkId = vi.fn().mockResolvedValue(undefined);
     const harness = setup({ contextOverrides: { setSinkId } as never });
     await harness.bus.open();
     expect(setSinkId).toHaveBeenCalledWith({ type: "none" });
   });
 
-  it("切れなくても開くのは続ける", async () => {
-    // iOS Safari は setSinkId に対応しない。
+  it("still opens when the sink cannot be silenced", async () => {
+    // iOS Safari has no setSinkId.
     const setSinkId = vi.fn().mockRejectedValue(new Error("unsupported"));
     const harness = setup({ contextOverrides: { setSinkId } as never });
     await harness.bus.open();

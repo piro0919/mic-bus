@@ -9,8 +9,8 @@ export {
 } from "./mic-bus.js";
 
 /**
- * 既定の共有マイク。
+ * The shared microphone.
  *
- * 開くのは端末に1本なので、普通はこれを使い回せばよい。
+ * There is only one device to open, so this instance is usually the one to use.
  */
 export const micBus = createMicBus();
